@@ -1,0 +1,126 @@
+name: 'Create or Update Pull Request'
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner que executará os jobs
+        type: string
+        required: false
+        default: ubuntu-latest
+      head-ref:
+        description: Branch origem
+        type: string
+        required: true
+      base-ref:
+        description: Branch destino
+        type: string
+        required: true
+      title:
+        description: Título do pull request
+        type: string
+        required: false
+        default: ''
+      body:
+        description: Descrição do pull request
+        type: string
+        required: false
+        default: ''
+      update-if-exists:
+        description: Atualiza o pull request caso já exista
+        type: boolean
+        required: false
+        default: false
+    
+    secrets:
+      PAT:
+        required: true
+    
+    outputs:
+      pr-number:
+        description: Número do pull request
+        value: ${{ jobs.pull-request.outputs.pr-number}}
+
+jobs:
+  pull-request:
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      pr-number: ${{ steps.pull-request.outputs.pr-number }}
+    steps:
+      - name: Create or update pull request
+        id: pull-request
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.PAT }}
+          script: |
+            try {
+              const headRef = '${{ inputs.head-ref }}';
+              const baseRef = '${{ inputs.base-ref }}';
+              const title = '${{ inputs.title }}';
+              const body = '${{ inputs.body }}';
+              const updateIfExists = '${{ inputs.update-if-exists }}' == 'true' ? true : false;
+              const { repo, owner } = context.repo;
+              const result = await github.rest.pulls.list({
+                owner,
+                repo,
+                head: `${owner}:${headRef}`,
+                base: baseRef,
+                state: 'open'
+              });
+              const pullRequest = result.data[0];
+              if (pullRequest) {
+                console.log(`O pull request "${pullRequest.number}" já existe: ${pullRequest.html_url}`);
+                core.setOutput('pr-number', pullRequest.number);
+                if (updateIfExists) {
+                  console.log(`Atualizando o pull request "${pullRequest.number}".`);
+                  const updateResult = await github.rest.pulls.update({
+                    owner,
+                    repo,
+                    pull_number: pullRequest.number,
+                    title: `${title} ${baseRef} <- ${headRef}`,
+                    body
+                  });
+                  if (updateResult) {
+                    console.log(`O pull request "${pullRequest.number}" foi atualizado com sucesso: ${pullRequest.html_url}`);
+                  } else {
+                    core.setFailed(`Falha ao atualizar o pull request "${pullRequest.number}".`);
+                  }
+                }
+              } else {
+                const diffResult = await github.rest.repos.compareCommits({
+                  owner,
+                  repo,
+                  base: baseRef,
+                  head: `${owner}:${headRef}`
+                });
+                if (diffResult.data.total_commits === 0) {
+                  console.log(`Nenhuma diferença foi encontrada entre as branches "${baseRef}" e "${headRef}". O pull request não será criado.`);
+                } else {
+                  console.log(`Criando um novo pull request de "${headRef}" para "${baseRef}".`);
+                  const createResult = await github.rest.pulls.create({
+                    owner,
+                    repo,
+                    head: `${owner}:${headRef}`,
+                    base: baseRef,
+                    title: `${title} ${baseRef} <- ${headRef}`,
+                    body
+                  });
+                  if (createResult) {
+                    console.log(`O pull request "${createResult.data.number}" foi criado com sucesso: ${createResult.data.html_url}`);
+                    core.setOutput('pr-number', createResult.data.number);
+                  } else {
+                    core.setFailed(`Falha ao criar o pull request de "${headRef}" para "${baseRef}".`);
+                  }
+                }
+              }
+            } catch(error) {
+              if (error instanceof SyntaxError) {
+                core.setFailed('Existem caracteres inválidos nos inputs. Verifique se os caracteres especiais estão sendo escapados corretamente.');
+              } else {
+                if (error instanceof Error) {
+                  core.setFailed(`Falha ao criar o pull request de "${headRef}" para "${baseRef}": ${error.message}`);
+                } else {
+                  core.setFailed(error);
+                }
+              }
+            }

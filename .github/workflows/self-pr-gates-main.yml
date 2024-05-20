@@ -1,0 +1,47 @@
+name: 'PR Gates to Main'
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner que executará os jobs
+        type: string
+        required: false
+        default: ubuntu-latest
+      head-ref:
+        description: Branch origem do pull request
+        type: string
+        required: false
+        default: ${{ github.head_ref }}
+      pr-number:
+        description: Número do pull request
+        type: string
+        required: false
+        default: '${{ github.event.number }}'
+
+jobs:
+  check-head-branch:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Check Head Branch
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const headRef = '${{ inputs.head-ref }}';
+            const prNumber = '${{ inputs.pr-number }}';
+            if (headRef.startsWith('feature') || headRef.startsWith('fix')) {
+              core.info(`A branch origem "${headRef}" é válida para o pull request "${prNumber}".`);
+            } else {
+              core.setFailed(`A branch origem "${headRef} NÃO é válida para o pull request "${prNumber}". Somente branches do tipo "feature" ou "fix" podem ser mergeadas para a branch "main".`);
+            }
+  
+  gates:
+    needs: check-head-branch
+    if: failure()
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Annotation
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            core.setFailed('Todos os gates devem ser executados com sucesso para prosseguir com o pull request.');

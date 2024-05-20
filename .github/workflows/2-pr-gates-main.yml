@@ -1,0 +1,13 @@
+name: '2 - PR Gates to Main'
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchorinize
+      - edited
+    branches: main
+
+jobs:
+  gates-main:
+    uses: ./.github/workflows/self-pr-gates-main.yml

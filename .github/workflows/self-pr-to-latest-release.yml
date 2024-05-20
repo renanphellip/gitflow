@@ -1,0 +1,49 @@
+name: 'PR to Latest Release'
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner que executará os jobs
+        type: string
+        required: false
+        default: ubuntu-latest
+
+jobs:
+  latest-release-branch:
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      latest-release: ${{ steps.get-latest-release-branch.outputs.latest-release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get Latest Release Branch
+        id: get-latest-release-branch
+        run: |
+          LATEST_RELEASE=$(git branch -la | grep -oE "^ +remotes\/origin\/v[0-9]+$" | tail -n 1 | sed -e 's/remotes\/origin\///' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          echo "latest-release=${LATEST_RELEASE}" >> $GITHUB_OUTPUT
+          echo "latest-release=${LATEST_RELEASE}"
+      
+      - name: Validate Latest Release
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const latestRelease = '${{ steps.get-latest-release-branch.outputs.latest-release }}';
+            const releaseRegex = /^v[0-9]+$/;
+            if (releaseRegex.test(latestRelease)) {
+              console.log(`Branch válida encontrada: ${latestRelease}`);
+            } else {
+              core.setFailed('Não foi encontrada uma branch válida com o seguinte padrão: v*');
+            }
+
+  open-pr:
+    uses: ./.github/workflows/self-create-or-update-pr.yml
+    needs: latest-release-branch
+    with:
+      head-ref: main
+      base-ref: ${{ needs.latest-release-branch.outputs.latest-release }}
+      body: Teste
+    secrets: inherit

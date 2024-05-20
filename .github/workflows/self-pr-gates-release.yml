@@ -1,0 +1,98 @@
+name: 'PR Gates to Release'
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner que executará os jobs
+        type: string
+        required: false
+        default: ubuntu-latest
+      head-ref:
+        description: Branch origem do pull request
+        type: string
+        required: false
+        default: ${{ github.head_ref }}
+      base-ref:
+        description: Branch destino do pull request
+        type: string
+        required: false
+        default: ${{ github.base_ref }}
+      pr-number:
+        description: Número do pull request
+        type: string
+        required: false
+        default: '${{ github.event.number }}'
+
+jobs:
+  latest-release-branch:
+    runs-on: ${{ inputs.runs-on }}
+    outputs:
+      latest-release: ${{ steps.get-latest-release-branch.outputs.latest-release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get Latest Release Branch
+        id: get-latest-release-branch
+        run: |
+          LATEST_RELEASE=$(git branch -la | grep -oE "^ +remotes\/origin\/v[0-9]+$" | tail -n 1 | sed -e 's/remotes\/origin\///' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          echo "latest-release=${LATEST_RELEASE}" >> $GITHUB_OUTPUT
+          echo "latest-release=${LATEST_RELEASE}"
+      
+      - name: Validate Latest Release
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const latestRelease = '${{ steps.get-latest-release-branch.outputs.latest-release }}';
+            const releaseRegex = /^v[0-9]+$/;
+            if (releaseRegex.test(latestRelease)) {
+              console.log(`Branch válida encontrada: ${latestRelease}`);
+            } else {
+              core.setFailed('Não foi encontrada uma branch válida com o seguinte padrão: v*');
+            }
+
+  check-head-branch:
+    needs: latest-release-branch
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Check Head Branch for Release
+        if: inputs.base-ref != needs.latest-release-branch.outputs.latest-release
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const headRef = '${{ inputs.head-ref }}';
+            const baseRef = '${{ inputs.base-ref }}';
+            const prNumber = '${{ inputs.pr-number }}';
+            if (headRef.startsWith('fix')) {
+              core.info(`A branch origem "${headRef}" é válida para o pull request "${prNumber}".`);
+            } else {
+              core.setFailed(`A branch origem "${headRef} NÃO é válida para o pull request "${prNumber}". Somente branches do tipo "fix" podem ser mergeadas para a branch "${baseRef}".`);
+            }
+      
+      - name: Check Head Branch for Latest Release
+        if: inputs.base-ref == needs.latest-release-branch.outputs.latest-release
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const headRef = '${{ inputs.head-ref }}';
+            const baseRef = '${{ inputs.base-ref }}';
+            const prNumber = '${{ inputs.pr-number }}';
+            if (headRef.startsWith('fix') || headRef == 'main') {
+              core.info(`A branch origem "${headRef}" é válida para o pull request "${prNumber}".`);
+            } else {
+              core.setFailed(`A branch origem "${headRef} NÃO é válida para o pull request "${prNumber}". Somente branches do tipo "fix" ou "main" podem ser mergeadas para a branch "${baseRef}".`);
+            }
+  
+  gates:
+    needs: check-head-branch
+    if: failure()
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - name: Annotation
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            core.setFailed('Todos os gates devem ser executados com sucesso para prosseguir com o pull request.');

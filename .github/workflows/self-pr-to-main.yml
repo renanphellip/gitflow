@@ -1,0 +1,13 @@
+name: 'PR to Main'
+
+on:
+  workflow_call:
+
+jobs:
+  open-pr:
+    uses: ./.github/workflows/self-create-or-update-pr.yml
+    with:
+      head-ref: ${{ github.ref_name }}
+      base-ref: main
+      body: Teste
+    secrets: inherit

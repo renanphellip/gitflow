@@ -1,0 +1,10 @@
+name: '3 - PR to Latest Release'
+
+on:
+  push:
+    branches: main
+
+jobs:
+  main:
+    uses: ./.github/workflows/self-pr-to-latest-release.yml
+    secrets: inherit

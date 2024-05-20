@@ -1,0 +1,13 @@
+name: '4 - PR Gates to Release'
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchorinize
+      - edited
+    branches: v*
+
+jobs:
+  gates-release:
+    uses: ./.github/workflows/self-pr-gates-release.yml

@@ -1,0 +1,12 @@
+name: '1 - PR to Main'
+
+on:
+  push:
+    branches:
+      - feature**
+      - fix**
+
+jobs:
+  feat-or-fix:
+    uses: ./.github/workflows/self-pr-to-main.yml
+    secrets: inherit
