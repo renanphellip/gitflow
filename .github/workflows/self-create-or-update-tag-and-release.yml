@@ -38,10 +38,19 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]'
       
-      - name: Create or Update Tag
+      - name: Get Commit SHA
+        id: commit_sha
         run: |
-          TAG_NAME="${{ inputs.ref-name }}"
-          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}" 2>/dev/null || git tag -f -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          COMMIT_SHA="$(git log -2 --pretty=format:"%H" | tail -1)"
+          echo "commit-sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
+          echo "commit-sha=${COMMIT_SHA}"
+      
+      - name: Create or Update Tag
+        env:
+          TAG_NAME: ${{ inputs.ref-name }}
+          COMMIT_SHA: ${{ steps.commit_sha.outputs.commit-sha }}
+        run: |
+          git tag -a ${TAG_NAME} ${COMMIT_SHA} -m "Release ${TAG_NAME}" 2>/dev/null || git tag -f -a ${TAG_NAME} ${COMMIT_SHA} -m "Release ${TAG_NAME}"
           git push origin --tags --force
       
       - name: Create a GitHub release
