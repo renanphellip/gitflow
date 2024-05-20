@@ -94,7 +94,7 @@ jobs:
                   head: `${owner}:${headRef}`
                 });
                 if (diffResult.data.total_commits === 0) {
-                  console.log(`Nenhuma diferença foi encontrada entre as branches "${baseRef}" e "${headRef}". O pull request não será criado.`);
+                  core.warning(`Nenhuma diferença foi encontrada entre as branches "${baseRef}" e "${headRef}". O pull request não será criado.`);
                 } else {
                   console.log(`Criando um novo pull request de "${headRef}" para "${baseRef}".`);
                   const createResult = await github.rest.pulls.create({
