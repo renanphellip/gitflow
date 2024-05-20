@@ -1,0 +1,47 @@
+name: 'Create or Update Tag and Release'
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        description: Runner que executará os jobs
+        type: string
+        required: false
+        default: ubuntu-latest
+      ref-name:
+        description: Nome da branch de release
+        type: string
+        required: false
+        default: ${{ github.ref_name }}
+      update-if-exists:
+        description: Atualiza a tag e a release caso já existam
+        type: boolean
+        required: false
+        default: true
+    
+    secrets:
+      PAT:
+        required: true
+
+jobs:
+  tag-release:
+    runs-on: ${{ inputs.runs-on }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.PAT }}
+          custom_tag: ${{ inputs.ref-name }}
+          tag_prefix: ''
+      
+      - name: Create a GitHub release
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: ${{ inputs.update-if-exists }}
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          generateReleaseNotes: true
+          prerelease: true

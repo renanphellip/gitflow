@@ -1,0 +1,10 @@
+name: '5 - Tag & Release'
+
+on:
+  push:
+    branches: v*
+
+jobs:
+  tag-release:
+    uses: ./.github/workflows/self-create-or-update-tag-and-release.yml
+    secrets: inherit
