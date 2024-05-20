@@ -27,21 +27,28 @@ jobs:
   tag-release:
     runs-on: ${{ inputs.runs-on }}
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Bump version and push tag
-        id: tag_version
-        uses: mathieudutour/github-tag-action@v6.2
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          github_token: ${{ secrets.PAT }}
-          custom_tag: ${{ inputs.ref-name }}
-          tag_prefix: ''
+          fetch-depth: 0
+      
+      - name: Set Up Git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]'
+      
+      - name: Create or Update Tag
+        run: |
+          TAG_NAME="${{ inputs.ref-name }}"
+          git tag -a "${TAG_NAME}" -m "Release ${TAG_NAME}" 2>/dev/null || git tag -f -a "${TAG_NAME}" -m "Release ${TAG_NAME}"
+          git push origin --tags --force
       
       - name: Create a GitHub release
         uses: ncipollo/release-action@v1.14.0
         with:
+          token: ${{ secrets.PAT }}
           allowUpdates: ${{ inputs.update-if-exists }}
-          tag: ${{ steps.tag_version.outputs.new_tag }}
-          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          tag: ${{ inputs.ref-name }}
+          name: Release ${{ inputs.ref-name }}
           generateReleaseNotes: true
           prerelease: true
