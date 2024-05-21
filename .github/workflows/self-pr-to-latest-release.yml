@@ -23,7 +23,7 @@ jobs:
       - name: Get Latest Release Branch
         id: get-latest-release-branch
         run: |
-          LATEST_RELEASE=$(git branch -la | grep -oE "^ +remotes\/origin\/v[0-9]+$" | tail -n 1 | sed -e 's/remotes\/origin\///' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          LATEST_RELEASE=$(git branch -la | grep -oE "^ +remotes\/origin\/release\/v[0-9]+$" | tail -n 1 | sed -e 's/remotes\/origin\///' -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
           echo "latest-release=${LATEST_RELEASE}" >> $GITHUB_OUTPUT
           echo "latest-release=${LATEST_RELEASE}"
       
@@ -32,11 +32,11 @@ jobs:
         with:
           script: |
             const latestRelease = '${{ steps.get-latest-release-branch.outputs.latest-release }}';
-            const releaseRegex = /^v[0-9]+$/;
+            const releaseRegex = /^release\/v[0-9]+$/;
             if (releaseRegex.test(latestRelease)) {
               console.log(`Branch válida encontrada: ${latestRelease}`);
             } else {
-              core.setFailed('Não foi encontrada uma branch válida com o seguinte padrão: v*');
+              core.setFailed('Não foi encontrada uma branch válida com o seguinte padrão: release/v*');
             }
 
   open-pr:

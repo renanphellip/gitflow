@@ -2,7 +2,7 @@ name: '5 - Tag & Release'
 
 on:
   push:
-    branches: v*
+    branches: release/v*
 
 jobs:
   tag-release:
