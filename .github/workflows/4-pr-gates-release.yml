@@ -6,7 +6,7 @@ on:
       - opened
       - synchorinize
       - edited
-    branches: v*
+    branches: release/v*
 
 jobs:
   gates-release:
