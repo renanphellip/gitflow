@@ -13,11 +13,6 @@ on:
         type: string
         required: false
         default: ${{ github.ref_name }}
-      update-if-exists:
-        description: Atualiza a tag e a release caso já existam
-        type: boolean
-        required: false
-        default: true
     
     secrets:
       PAT:
@@ -40,16 +35,73 @@ jobs:
       
       - name: Get Tag Name
         id: tag_name
-        run: |
-          BRANCH_NAME="${{ inputs.ref-name }}"
-          TAG_NAME="${BRANCH_NAME/release\//}"
-          echo "tag-name=${TAG_NAME}" >> $GITHUB_OUTPUT
-          echo "tag-name=${TAG_NAME}"
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const branchName = '${{ inputs.ref-name }}';
+            const tagName = branchName.replace('release/', '');
+            core.setOutput('tag-name', tagName);
+            console.log(`tag-name=${tagName}`);
+      
+      - name: Get Previous Release
+        id: previous_release
+        uses: actions/github-script@v7.0.1
+        with:
+          script: |
+            const { repo, owner } = context.repo;
+            const tagName = '${{ steps.tag_name.outputs.tag-name }}';
+            let previousRelease;
+            if (tagName === 'v1') {
+              previousRelease = 'main';
+            } else {
+              const tagNumber = parseInt(branchName.replace('v', ''), 10);
+              if (isNaN(tagNumber) || tagNumber <= 1) {
+                core.setFailed(`O número da tag é inválido.`);
+              }
+              previousRelease = `release/v${tagNumber - 1}`;
+            }
+            const result = await github.rest.repos.getBranch({
+              owner,
+              repo,
+              branch: previousRelease,
+            });
+            if (result.status !== 200) {
+              core.setFailed(`Falha ao localizar a branch "${previousRelease}."`);
+            } else {
+              console.log(`A branch "${previousRelease}" foi encontrada com sucesso.`);
+            }
+            core.setOutput('previous-release', previousRelease);
+            console.log(`previous-release=${previousRelease}`);
+      
+      - name: Get Diff Commits Count
+        id: diff_commits_count
+        uses: actions/github-script@v7.0.1
+        with:
+          github-token: ${{ secrets.PAT }}
+          script: |
+            const currentReleaseBranchName = '${{ inputs.ref-name }}';
+            const previousReleaseBranchName = '${{ steps.previous_release.outputs.previous-release }}';
+            const { repo, owner } = context.repo;
+            try {
+              const diffResult = await github.rest.repos.compareCommits({
+                owner,
+                repo,
+                base: previousReleaseBranchName,
+                head: `${owner}:${currentReleaseBranchName}`
+              });
+              const diffCommitsCount = diffResult.data.total_commits;
+              core.setOutput('diff-commits-count', diffCommitsCount);
+              console.log(`diff-commits-count=${diffCommitsCount}`);
+            } catch(error) {
+              core.setFailed(`Falha ao obter a diferença de commits entre as branches "${previousReleaseBranchName}" e "${currentReleaseBranchName}".`);
+            }
       
       - name: Get Commit SHA
         id: commit_sha
         run: |
-          COMMIT_SHA="$(git log -2 --pretty=format:"%H" | tail -1)"
+          COMMIT_INDEX=2
+          if [[ "${{ steps.diff_commits_count.outputs.diff-commits-count }}" == "0" ]]; then COMMIT_INDEX=1; fi
+          COMMIT_SHA="$(git log -${COMMIT_INDEX} --pretty=format:"%H" | tail -1)"
           echo "commit-sha=${COMMIT_SHA}" >> $GITHUB_OUTPUT
           echo "commit-sha=${COMMIT_SHA}"
       
@@ -101,7 +153,7 @@ jobs:
         uses: ncipollo/release-action@v1.14.0
         with:
           token: ${{ secrets.PAT }}
-          allowUpdates: ${{ inputs.update-if-exists }}
+          allowUpdates: true
           tag: ${{ steps.tag_name.outputs.tag-name }}
           name: Release ${{ steps.tag_name.outputs.tag-name }}
           generateReleaseNotes: true
